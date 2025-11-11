@@ -8,12 +8,12 @@ LLMs are far better at writing code than managing complex tool calls. Instead of
 
 ## 🚀 Features
 
-- **TypeScript Code Execution** – Run TypeScript with full access to registered MCP/UTCP tools
+- **TypeScript Code Execution** – Run JavaScript with full access to registered MCP/UTCP tools
 - **Hierarchical Tool Access** – Tools organized by namespace (e.g. `math_tools.add()`)
 - **Auto-Generated Type Definitions** – Type-safe interfaces for tool inputs and outputs
 - **Runtime Interface Access** – Introspect TypeScript interfaces at runtime
 - **Secure Execution** – Node.js VM sandbox with timeout and resource limits
-- **Composable Calls – Chain** multiple tool calls within a single TypeScript code block
+- **Composable Calls – Chain** multiple tool calls within a single JavaScript code block
 
 ## 🧠 Why Code Mode
 
@@ -28,10 +28,10 @@ Direct tool calling doesn't scale:
 
 Code Mode flips this model:
 
-1. The LLM gets a single tool: **`execute_code`**
-2. It writes JS/TS that calls your MCP or UTCP endpoints 
-3. A lightweight HTTP proxy forwards requests 
-4. Results flow back through the execution environment
+1. The LLM gets the ability to search tools in natural language using **`searchTools`**. Each tool is shown as a TypeScript interface.
+2. The LLM gets a single tool: **`callToolChain`**
+3. It writes JS that calls your MCP or UTCP tools as JS functions 
+3. Only end results get returned to the agent
 
 This leverages what LLMs excel at - **writing code** - while keeping tool orchestration efficient and stateless.
 
@@ -39,7 +39,7 @@ This leverages what LLMs excel at - **writing code** - while keeping tool orches
 
 ### 🧭 Progressive Disclosure
 
-Tools can be explored like files on a filesystem — loaded only when needed.  Agents can also search for tools dynamically () to keep context lean.`search_tools`
+Agents can search for tools dynamically to keep context lean.`searchTools`
 
 ### 💾 Context Efficiency
 
@@ -53,9 +53,6 @@ Loops, conditionals, and error handling happen naturally in code - not through m
 
 Intermediate results stay within the sandbox; sensitive data can be tokenized automatically before reaching the model.
 
-### 🧱 State & Skills
-
-Agents can persist data or reusable functions (), gradually building their own "skills" over time.`./skills/*.ts`
 ## Installation
 
 ```bash
