@@ -475,9 +475,8 @@ The [comprehensive Python study](https://github.com/imran31415/codemode_python_b
 - **[Cloudflare Research](https://blog.cloudflare.com/code-mode/)** – Original code mode whitepaper
 - **[Anthropic Study](https://www.anthropic.com/engineering/code-execution-with-mcp)** – MCP code execution benefits
 - **[Python Benchmark Study](https://github.com/imran31415/codemode_python_benchmark)** – Comprehensive performance analysis
-- **[Ready-to-Use MCP Server](https://github.com/universal-tool-calling-protocol/utcp-mcp)** – Plug-and-play Claude Desktop integration
-- **[UTCP Specification](https://github.com/universal-tool-calling-protocol/typescript-utcp)** – Official TypeScript implementation  
-- **[Report Issues](https://github.com/universal-tool-calling-protocol/typescript-utcp/issues)** – Bug reports and feature requests
+- **[UTCP Specification](https://utcp.io)** – Official TypeScript implementation  
+- **[Report Issues](https://github.com/universal-tool-calling-protocol/code-mode/issues)** – Bug reports and feature requests
 
 ## License
 
