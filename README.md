@@ -42,6 +42,19 @@ Independent [Python benchmark study](https://github.com/imran31415/codemode_pyth
    **Cognitive Efficiency** - LLMs excel at code generation vs. tool orchestration  
    **Computational Efficiency** - No context re-processing between operations
 
+   ## Why Choose Code Mode UTCP?
+
+| Traditional Tool Calling | **Code Mode UTCP** | **Improvement** |
+|--------------------------|-------------------|----------------|
+| 15+ API round trips | **1 code execution** | **15x fewer requests** |
+| 50,000+ context tokens | **2,000 tokens** | **96% token reduction** |
+| 16 iterations (complex) | **1 iteration** | **88% faster** |
+| Higher token costs | **68% token reduction** | **$9,536/year savings** |
+| Manual error handling | **Automatic capture & logs** | **Zero-config observability** |
+| Tool-by-tool discovery | **Dynamic semantic search** | **Progressive disclosure** |
+| Vendor/protocol lock-in | **Universal compatibility** | **MCP, HTTP, File, CLI** |
+
+
 **Real-world results:** Independent benchmarks demonstrate significant cost savings, with **$9,536/year savings** possible at enterprise scale (1,000 scenarios/day).
 
 # Getting Started
@@ -447,17 +460,6 @@ logs.forEach(log => {
 
 ---
 
-## Why Choose Code Mode UTCP?
-
-| Traditional Tool Calling | **Code Mode UTCP** | **Improvement** |
-|--------------------------|-------------------|----------------|
-| 15+ API round trips | **1 code execution** | **15x fewer requests** |
-| 50,000+ context tokens | **2,000 tokens** | **96% token reduction** |
-| 16 iterations (complex) | **1 iteration** | **88% faster** |
-| Higher token costs | **68% token reduction** | **$9,536/year savings** |
-| Manual error handling | **Automatic capture & logs** | **Zero-config observability** |
-| Tool-by-tool discovery | **Dynamic semantic search** | **Progressive disclosure** |
-| Vendor/protocol lock-in | **Universal compatibility** | **MCP, HTTP, File, CLI** |
 
 ### **Benchmark Methodology**
 The [comprehensive Python study](https://github.com/imran31415/codemode_python_benchmark) tested **16 realistic scenarios** across:
