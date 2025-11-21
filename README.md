@@ -123,7 +123,7 @@ namespace github {
 - **Zero External Dependencies** – Tools only accessible through registered UTCP/MCP servers
 - **Runtime Introspection** – Dynamic interface discovery for adaptive workflows
 
-If you're working at an enterprise, and need support, book a consultation [here]([url](https://bevel.neetocal.com/meeting-with-ali
+If you're working at an enterprise, and need support, book a consultation [here]([url](https://bevel.neetocal.com/meeting-with-ali)
 )).
 ## Universal Protocol Support
 
