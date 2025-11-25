@@ -41,10 +41,18 @@ Independent [Python benchmark study](https://github.com/imran31415/codemode_pyth
 
 ```python
 from utcp_code_mode import CodeModeUtcpClient
+from utcp.data.call_template import CallTemplateSerializer
 
-client = await CodeModeUtcpClient.create()                    # 1. Initialize
-await client.register_manual({'name': 'github', ...})         # 2. Add tools  
-result = await client.call_tool_chain("# Python code here")   # 3. Execute code
+client = await CodeModeUtcpClient.create()                              # 1. Initialize
+
+# Serialize the call template dict to CallTemplate object
+call_template = CallTemplateSerializer().validate_dict({
+    'name': 'github',
+    'call_template_type': 'mcp',
+    'config': {...}
+})
+await client.register_manual(call_template)                             # 2. Add tools  
+result = await client.call_tool_chain("# Python code here")             # 3. Execute code
 ```
 
 That's it. Your AI agent can now execute complex workflows in a single request instead of dozens.
@@ -99,12 +107,14 @@ class GithubGetPullRequestInput(TypedDict):
 
 Works with **any tool ecosystem:**
 
-| Protocol | Description | Usage |
-|----------|-------------|-------|
-| **MCP** | Model Context Protocol servers | `call_template_type: 'mcp'` |
-| **HTTP** | REST APIs with auto-discovery | `call_template_type: 'http'` |  
-| **File** | Local JSON/YAML configurations | `call_template_type: 'file'` |
-| **CLI** | Command-line tool execution | `call_template_type: 'cli'` |
+| Protocol | Description | Usage | Plugin Required |
+|----------|-------------|-------|----------------|
+| **MCP** | Model Context Protocol servers | `call_template_type: 'mcp'` | `pip install utcp-mcp` |
+| **HTTP** | REST APIs with auto-discovery | `call_template_type: 'http'` | Built-in |  
+| **Text** | Local JSON/YAML/UTCP files | `call_template_type: 'text'` | Built-in |
+| **CLI** | Command-line tool execution | `call_template_type: 'cli'` | `pip install utcp-cli` |
+
+> **Note:** Each protocol requires its corresponding plugin to be installed. Installing a plugin automatically registers it with the UTCP client.
 
 ## Installation
 
@@ -117,13 +127,18 @@ pip install code-mode
 ### 1. **MCP Server Integration**
 Connect to any Model Context Protocol server:
 
+> **Prerequisites:** `pip install utcp-mcp` (installing the plugin auto-registers it)
+
 ```python
 from utcp_code_mode import CodeModeUtcpClient
+from utcp.data.call_template import CallTemplateSerializer
+import os
 
 client = await CodeModeUtcpClient.create()
 
 # Connect to GitHub MCP server
-await client.register_manual({
+# Serialize the dict to CallTemplate object
+call_template = CallTemplateSerializer().validate_dict({
     'name': 'github',
     'call_template_type': 'mcp',
     'config': {
@@ -136,6 +151,7 @@ await client.register_manual({
         }
     }
 })
+await client.register_manual(call_template)
 ```
 
 ### 2. **Execute Multi-Step Workflows**
@@ -184,10 +200,27 @@ print('Analysis Result:', result['result'])
 Mix and match different tool ecosystems in a single execution:
 
 ```python
+from utcp.data.call_template import CallTemplateSerializer
+
+serializer = CallTemplateSerializer()
+
 # Register multiple tool sources
-await client.register_manual({'name': 'github', 'call_template_type': 'mcp', ...})
-await client.register_manual({'name': 'slack', 'call_template_type': 'http', ...})
-await client.register_manual({'name': 'db', 'call_template_type': 'file', 'file_path': './db-tools.json'})
+await client.register_manual(serializer.validate_dict({
+    'name': 'github',
+    'call_template_type': 'mcp',
+    'config': {...}
+}))
+await client.register_manual(serializer.validate_dict({
+    'name': 'slack',
+    'call_template_type': 'http',
+    'http_method': 'POST',
+    'url': 'https://api.slack.com/utcp'
+}))
+await client.register_manual(serializer.validate_dict({
+    'name': 'db',
+    'call_template_type': 'text',
+    'file_path': './db-tools.json'
+}))
 
 result = await client.call_tool_chain('''
 # Fetch PR data from GitHub (MCP)
