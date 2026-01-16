@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "Node",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "lib": ["ES2022"],
     "declaration": true,
     "declarationMap": true,

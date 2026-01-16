@@ -20,7 +20,7 @@ You have access to a CodeModeUtcpClient that allows you to execute TypeScript co
 ### 1. Tool Discovery Phase
 **Always start by discovering available tools:**
 - Tools are organized by manual namespace (e.g., \`manual_name.tool_name\`)
-- Use hierarchical access patterns: \`await manual.tool({ param: value })\`
+- Use hierarchical access patterns: \`manual.tool({ param: value })\` (synchronous, no await)
 - Multiple manuals can contain tools with the same name - namespaces prevent conflicts
 
 ### 2. Interface Introspection
