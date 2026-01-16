@@ -1,6 +1,6 @@
 {
   "name": "@utcp/code-mode",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Code execution mode for UTCP - enables executing TypeScript code chains with tool access using isolated-vm for security",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -40,8 +40,15 @@
     }
   },
   "dependencies": {
-    "@utcp/sdk": "^1.1.0",
+    "@utcp/sdk": "^1.1.0"
+  },
+  "peerDependencies": {
     "isolated-vm": "^5.0.1"
+  },
+  "peerDependenciesMeta": {
+    "isolated-vm": {
+      "optional": false
+    }
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
