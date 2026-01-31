@@ -30,6 +30,7 @@ import {
 } from "@utcp/sdk";
 import type { UtcpClientConfig } from "@utcp/sdk";
 import { CodeModeUtcpClient } from "@utcp/code-mode";
+import { ContentBlock, ContentBlockSchema } from "@modelcontextprotocol/sdk/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -178,7 +179,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
             }));
             return { content: [{ type: "text", text: JSON.stringify({ tools: toolsWithInterfaces }) }] };
         } catch (e: any) {
-            return { content: [{ type: "text", text: JSON.stringify({ success: false, error: e.message }) }] };
+            return { isError: true, content: [{ type: "text", text: JSON.stringify({ error: e.message }) }] };
         }
     });
 
@@ -193,7 +194,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
             const toolNames = tools.map(t => utcpNameToTsInterfaceName(t.name));
             return { content: [{ type: "text", text: JSON.stringify({ tools: toolNames }) }] };
         } catch (e: any) {
-            return { content: [{ type: "text", text: JSON.stringify({ success: false, error: e.message }) }] };
+            return { isError: true, content: [{ type: "text", text: e.message }] };
         }
     });
 
@@ -208,12 +209,12 @@ Remember: The power of this system comes from combining multiple tools in sophis
         try {
             const found = await findToolByName(client, input.tool_name);
             if (!found) {
-                return { content: [{ type: "text", text: JSON.stringify({ success: false, tool_name: input.tool_name, error: `Tool '${input.tool_name}' not found` }) }] };
+                return { isError: true, content: [{ type: "text", text: `Tool '${input.tool_name}' not found` }] };
             }
             const variables = await client.getRequiredVariablesForRegisteredTool(found.utcpName);
             return { content: [{ type: "text", text: JSON.stringify({ success: true, tool_name: input.tool_name, required_variables: variables }) }] };
         } catch (e: any) {
-            return { content: [{ type: "text", text: JSON.stringify({ success: false, tool_name: input.tool_name, error: e.message }) }] };
+            return {isError: true, content: [{ type: "text", text: JSON.stringify({ tool_name: input.tool_name, error: e.message }) }] };
         }
     });
 
@@ -228,12 +229,12 @@ Remember: The power of this system comes from combining multiple tools in sophis
         try {
             const found = await findToolByName(client, input.tool_name);
             if (!found) {
-                return { content: [{ type: "text", text: JSON.stringify({ success: false, error: `Tool '${input.tool_name}' not found` }) }] };
+                return { isError: true, content: [{ type: "text", text: `Tool '${input.tool_name}' not found` }] };
             }
             const typescript_interface = client.toolToTypeScriptInterface(found.tool);
             return { content: [{ type: "text", text: typescript_interface }] };
         } catch (e: any) {
-            return { content: [{ type: "text", text: JSON.stringify({ success: false, error: e.message }) }] };
+            return { isError: true, content: [{ type: "text", text: e.message }] };
         }
     });
 
@@ -250,13 +251,48 @@ Remember: The power of this system comes from combining multiple tools in sophis
         const client = await initializeUtcpClient();
         try {
             const { result, logs } = await client.callToolChain(input.code, input.timeout);
-            const content = JSON.stringify({ success: true, result, logs })
-            if (content.length > input.max_output_size) {
-                return { content: [{ type: "text", text: content.slice(0, input.max_output_size) + "...\nmax_output_size exceeded" }] };
+            
+            function truncateText(text: string): string {
+                if (text.length <= input.max_output_size) {
+                    return text;
+                }
+                return text.slice(0, input.max_output_size) + "...\nmax_output_size exceeded";
             }
-            return { content: [{ type: "text", text: content }] };
+
+            let content: Array<ContentBlock> = new Array<ContentBlock>();
+            let processedResult: Array<any> = new Array<any>();
+
+            // Handle MCP response content blocks
+            // Based on logic from McpCommunicationProtocol._processMcpToolResult
+
+            let mcpContentFound = false;
+            // Case 1: content blocks passed as an array (when more than one)
+            if (Array.isArray(result)) {
+                for (const item of result) {
+                    if (ContentBlockSchema.safeParse(item).success) {
+                        content.push(item as ContentBlock);
+                        mcpContentFound = true;
+                    } else {
+                        // Text blocks are returned as plain object or string
+                        processedResult.push(item);
+                    }
+                }
+            // Case 2: when a single content block is returned, it passed directly
+            } else if (ContentBlockSchema.safeParse(result).success) {
+                content.push(result as ContentBlock);
+                mcpContentFound = true;
+            // Case 3: result is not a content block - it's either text or structured data or not MCP content at all
+            } else {
+                processedResult.push(result);
+            }
+            
+            const plainContent: any = processedResult.length > 1 ? processedResult : processedResult[0];
+            const jsonContent: string = JSON.stringify({ success: true, nonMcpContentResults: plainContent, logs });
+            content.push({ type: "text", text: truncateText(jsonContent) });
+
+            return { content: content };
         } catch (e: any) {
-            return { content: [{ type: "text", text: JSON.stringify({ success: false, error: e.message }) }] };
+            return { isError: true, content: [{ type: "text", text: e.message }] };
         }
     });
 
