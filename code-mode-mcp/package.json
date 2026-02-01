@@ -1,6 +1,6 @@
 {
   "name": "@utcp/code-mode-mcp",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Model Context Protocol (MCP) server for UTCP Code Mode - Execute TypeScript code with direct tool access",
   "type": "module",
   "main": "dist/index.js",
@@ -51,7 +51,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.20.2",
     "@utcp/cli": "^1.1.0",
-    "@utcp/code-mode": "^1.2.10",
+    "@utcp/code-mode": "^1.2.11",
     "@utcp/dotenv-loader": "^1.1.0",
     "@utcp/file": "^1.1.0",
     "@utcp/http": "^1.1.0",
