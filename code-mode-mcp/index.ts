@@ -218,21 +218,35 @@ Remember: The power of this system comes from combining multiple tools in sophis
         }
     });
 
-    mcp.registerTool("tool_info", {
-        title: "Get Tool Information with TypeScript Interface",
-        description: "Get complete information about a specific tool including TypeScript interface definition.",
+    mcp.registerTool("tools_info", {
+        title: "Get Tools Information with TypeScript Interface",
+        description: "Get complete information about a specified list of tools, including TypeScript interface definition.",
         inputSchema: {
-            tool_name: z.string().describe("Name of the tool to get complete information for."),
+            tool_names: z.array(z.string()).describe("Names of the tools to get complete information for."),
         },
     }, async (input) => {
         const client = await initializeUtcpClient();
         try {
-            const found = await findToolByName(client, input.tool_name);
-            if (!found) {
-                return { isError: true, content: [{ type: "text", text: `Tool '${input.tool_name}' not found` }] };
+            const typescriptInterfaces: Array<string> = [];
+            const infos: Array<string> = [];
+            for (const name of input.tool_names) {
+                const found = await findToolByName(client, name);
+                if (found) {
+                    typescriptInterfaces.push(client.toolToTypeScriptInterface(found.tool));
+                } else {
+                    infos.push(`// Tool '${name}' not found`);
+                }
             }
-            const typescript_interface = client.toolToTypeScriptInterface(found.tool);
-            return { content: [{ type: "text", text: typescript_interface }] };
+
+            if (typescriptInterfaces.length === 0 && infos.length > 0) {
+                return { isError: true, content: [{ type: "text", text: infos.join("\n\n") }] };
+            } else {
+                let fullContent = typescriptInterfaces.join("\n\n");
+                if (infos.length > 0) {
+                    fullContent += "\n\n" + infos.join("\n");
+                }
+                return { content: [{ type: "text", text: fullContent }] };
+            }
         } catch (e: any) {
             return { isError: true, content: [{ type: "text", text: e.message }] };
         }
