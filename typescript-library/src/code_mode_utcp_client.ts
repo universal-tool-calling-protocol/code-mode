@@ -288,10 +288,15 @@ ${interfaces.join('\n\n')}`;
         const args = JSON.parse(argsJson);
         const result = await this.callTool(toolName, args);
         return JSON.stringify({ success: true, result });
-      } catch (error) {
+      } catch (error: any) {
+        let errorMsg: string = error instanceof Error ? error.message : String(error);
+        // HTTP response error handling
+        if (error.response?.data) {
+          errorMsg += ` Error data: ${JSON.stringify(error.response.data)}`;
+        }
         return JSON.stringify({ 
           success: false, 
-          error: error instanceof Error ? error.message : String(error) 
+          error: errorMsg
         });
       }
     });
