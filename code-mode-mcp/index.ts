@@ -3,6 +3,7 @@
 // UTCP-MCP Bridge Entry Point
 // This is the main entry point for the npx @utcp/mcp-bridge command
 
+import util from "util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -34,6 +35,10 @@ import { ContentBlock, ContentBlockSchema } from "@modelcontextprotocol/sdk/type
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Override info and warn logs in simple manner to keep compatibility with MCP stdio transport
+console.log = (...args: any[]) => { process.stderr.write(util.format(...args) + '\n'); }
+console.warn = (...args: any[]) => { process.stderr.write(util.format(...args) + '\n'); }
 
 ensureCorePluginsInitialized();
 
