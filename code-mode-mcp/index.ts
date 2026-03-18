@@ -6,12 +6,14 @@
 import util from "util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import path from "path";
 import { promises as fs } from "fs";
 import { parse as parseDotEnv } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import express from 'express';
 
 import "@utcp/http";
 import "@utcp/text";
@@ -36,25 +38,83 @@ import { ContentBlock, ContentBlockSchema } from "@modelcontextprotocol/sdk/type
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Override info and warn logs in simple manner to keep compatibility with MCP stdio transport
-console.log = (...args: any[]) => { process.stderr.write(util.format(...args) + '\n'); }
-console.warn = (...args: any[]) => { process.stderr.write(util.format(...args) + '\n'); }
+// Override console to stderr only in stdio mode to keep MCP transport clean
+if (!process.env.PORT) {
+    console.log = (...args: any[]) => { process.stderr.write(util.format(...args) + '\n'); }
+    console.warn = (...args: any[]) => { process.stderr.write(util.format(...args) + '\n'); }
+}
 
 ensureCorePluginsInitialized();
 
 let utcpClient: CodeModeUtcpClient | null = null;
 
 async function main() {
-    setupMcpTools();
     utcpClient = await initializeUtcpClient();
-    const transport = new StdioServerTransport();
-    await mcp.connect(transport);
+
+    const port = process.env.PORT !== undefined ? parseInt(process.env.PORT, 10) : null;
+
+    if (port !== null && isNaN(port)) {
+        throw new Error(`Invalid PORT value: ${process.env.PORT}`);
+    }
+
+    if (port !== null) {
+        const app = express();
+        app.use(express.json());
+
+        app.get('/health', (_req, res) => {
+            res.json({ status: 'ok' });
+        });
+
+        app.post('/mcp', async (req, res) => {
+            const server = createMcpServer();
+            try {
+                const transport = new StreamableHTTPServerTransport({
+                    sessionIdGenerator: undefined,
+                });
+                await server.connect(transport);
+                await transport.handleRequest(req, res, req.body);
+                res.on('close', () => {
+                    transport.close();
+                    server.close();
+                });
+            } catch (err) {
+                console.error('MCP request error:', err);
+                if (!res.headersSent) {
+                    res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Internal server error' }, id: null });
+                }
+            }
+        });
+
+        app.get('/mcp', (_req, res) => {
+            res.status(405).json({
+                jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null,
+            });
+        });
+
+        app.delete('/mcp', (_req, res) => {
+            res.status(405).json({
+                jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null,
+            });
+        });
+
+        app.listen(port, '0.0.0.0', () => {
+            console.log(`MCP HTTP server listening on port ${port}`);
+        });
+    } else {
+        const server = createMcpServer();
+        const transport = new StdioServerTransport();
+        await server.connect(transport);
+    }
 }
 
-const mcp = new McpServer({
-    name: "CodeMode-MCP",
-    version: "1.0.0",
-});
+function createMcpServer(): McpServer {
+    const server = new McpServer({
+        name: "CodeMode-MCP",
+        version: "1.0.0",
+    });
+    setupMcpTools(server);
+    return server;
+}
 
 /**
  * Sanitizes an identifier to be a valid TypeScript identifier.
@@ -90,7 +150,7 @@ async function findToolByName(client: CodeModeUtcpClient, name: string): Promise
     if (directTool) {
         return { tool: directTool, utcpName: name };
     }
-    
+
     // If not found, search through all tools to find one whose TS interface name matches
     const allTools = await client.config.tool_repository.getTools();
     for (const tool of allTools) {
@@ -98,13 +158,13 @@ async function findToolByName(client: CodeModeUtcpClient, name: string): Promise
             return { tool, utcpName: tool.name };
         }
     }
-    
+
     return null;
 }
 
-function setupMcpTools() {
+function setupMcpTools(server: McpServer) {
     // Register MCP prompt for using the code mode server
-    mcp.registerPrompt("utcp_codemode_usage", {
+    server.registerPrompt("utcp_codemode_usage", {
         title: "UTCP Code Mode Usage Guide",
         description: "Comprehensive guide on how to use the UTCP Code Mode MCP server for executing TypeScript code with tool access."
     }, async () => {
@@ -137,7 +197,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
         };
     });
 
-    mcp.registerTool("register_manual", {
+    server.registerTool("register_manual", {
         title: "Register a UTCP Manual",
         description: "Registers a new tool provider by providing its call template.",
         inputSchema: { manual_call_template: CallTemplateSchema.describe("The call template for the UTCP Manual endpoint.") },
@@ -151,7 +211,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
         }
     });
 
-    mcp.registerTool("deregister_manual", {
+    server.registerTool("deregister_manual", {
         title: "Deregister a UTCP Manual",
         description: "Deregisters a tool provider from the UTCP client.",
         inputSchema: { manual_name: z.string().describe("The name of the manual to deregister.") },
@@ -166,7 +226,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
         }
     });
 
-    mcp.registerTool("search_tools", {
+    server.registerTool("search_tools", {
         title: "Search for UTCP Tools",
         description: "Searches for relevant tools based on a task description.",
         inputSchema: {
@@ -188,7 +248,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
         }
     });
 
-    mcp.registerTool("list_tools", {
+    server.registerTool("list_tools", {
         title: "List All Registered UTCP Tools",
         description: "Returns a list of all tool names currently registered.",
         inputSchema: {},
@@ -203,7 +263,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
         }
     });
 
-    mcp.registerTool("get_required_keys_for_tool", {
+    server.registerTool("get_required_keys_for_tool", {
         title: "Get Required Variables for Tool",
         description: "Get required environment variables for a registered tool.",
         inputSchema: {
@@ -223,7 +283,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
         }
     });
 
-    mcp.registerTool("tools_info", {
+    server.registerTool("tools_info", {
         title: "Get Tools Information with TypeScript Interface",
         description: "Get complete information about a specified list of tools, including TypeScript interface definition.",
         inputSchema: {
@@ -258,7 +318,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
     });
 
     // Code Mode specific tools
-    mcp.registerTool("call_tool_chain", {
+    server.registerTool("call_tool_chain", {
         title: "Execute TypeScript Code with Tool Access",
         description: "Execute TypeScript code with direct access to all registered tools as hierarchical functions (e.g., manual.tool()).",
         inputSchema: {
@@ -270,7 +330,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
         const client = await initializeUtcpClient();
         try {
             const { result, logs } = await client.callToolChain(input.code, input.timeout);
-            
+
             function truncateText(text: string): string {
                 if (text.length <= input.max_output_size) {
                     return text;
@@ -304,7 +364,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
             } else {
                 processedResult.push(result);
             }
-            
+
             const plainContent: any = processedResult.length > 1 ? processedResult : processedResult[0];
             const jsonContent: string = JSON.stringify({ success: true, nonMcpContentResults: plainContent, logs });
             content.push({ type: "text", text: truncateText(jsonContent) });
@@ -325,15 +385,15 @@ async function initializeUtcpClient(): Promise<CodeModeUtcpClient> {
     // Look for config file: 1) Environment variable, 2) Current working directory, 3) Package directory
     const cwd = process.cwd();
     const packageDir = __dirname;
-    
+
     let configPath: string;
     let scriptDir: string;
-    
+
     // Check if UTCP_CONFIG_FILE environment variable is set
     if (process.env.UTCP_CONFIG_FILE) {
         configPath = path.resolve(process.env.UTCP_CONFIG_FILE);
         scriptDir = path.dirname(configPath);
-        
+
         try {
             await fs.access(configPath);
         } catch {
@@ -343,7 +403,7 @@ async function initializeUtcpClient(): Promise<CodeModeUtcpClient> {
         // Fall back to current working directory first, then package directory
         configPath = path.resolve(cwd, '.utcp_config.json');
         scriptDir = cwd;
-        
+
         try {
             await fs.access(configPath);
         } catch {

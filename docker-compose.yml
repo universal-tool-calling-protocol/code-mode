@@ -1,0 +1,16 @@
+services:
+  code-mode:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - UTCP_CONFIG_FILE=/app/config/.utcp_config.json
+    volumes:
+      - ./code-mode-mcp/.utcp_config.json:/app/config/.utcp_config.json:ro
+      - ./code-mode-mcp/.env:/app/config/.env:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r => { if (!r.ok) process.exit(1) })"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

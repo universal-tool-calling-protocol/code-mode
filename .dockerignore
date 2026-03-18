@@ -1,0 +1,6 @@
+python-library/
+typescript-library/
+.git/
+node_modules/
+dist/
+*.md
