@@ -20,7 +20,7 @@ You have access to a CodeModeUtcpClient that allows you to execute TypeScript co
 ### 1. Tool Discovery Phase
 **Always start by discovering available tools:**
 - Tools are organized by manual namespace (e.g., \`manual_name.tool_name\`)
-- Use hierarchical access patterns: \`manual.tool({ param: value })\` (synchronous, no await)
+- Use hierarchical access patterns: \`manual.tool({ param: value })\` (synchronous, no await needed — but \`await manual.tool(...)\` also works)
 - Multiple manuals can contain tools with the same name - namespaces prevent conflicts
 
 ### 2. Interface Introspection
@@ -34,6 +34,7 @@ You have access to a CodeModeUtcpClient that allows you to execute TypeScript co
 **When writing code for \`callToolChain\`:**
 - Use \`manual.tool({ param: value })\` syntax for all tool calls (synchronous, no await needed)
 - Tools are synchronous functions - the main process handles async operations internally
+- \`async\`/\`await\` syntax is fully supported - top-level await works without an explicit async wrapper
 - You have access to standard JavaScript globals: \`console\`, \`JSON\`, \`Math\`, \`Date\`, etc.
 - All console output (\`console.log\`, \`console.error\`, etc.) is automatically captured and returned
 - Build properly structured input objects based on interface definitions
@@ -204,25 +205,124 @@ ${interfaces.join('\n\n')}`;
       // Set up utility functions and interfaces
       await this.setupUtilities(isolate, context, jail, tools);
       
-      // Compile and run the user code - code is SYNC since tools use applySyncPromise
-      // Wrap result in JSON.stringify to transfer objects out of isolate
-      const wrappedCode = `
-        (function() {
-          var __result = (function() {
-            ${code}
-          })();
-          return JSON.stringify({ __result: __result });
-        })()
-      `;
-      
+      // isolated-vm's script.run() does not propagate Promises returned by async scripts,
+      // so we use a callback ref to transfer the result out of the isolate once the
+      // async user code settles. This allows:
+      //   1. User code that returns a Promise (e.g. an explicit async IIFE) to be
+      //      awaited before JSON.stringify, preventing the result being serialised as {}.
+      //   2. Top-level await syntax inside user code (since it runs inside an async function).
+      // Tools themselves still use applySyncPromise and remain synchronous from the user's
+      // perspective, but async/await syntax is fully supported if the user wants it.
+      let resolveResult: (json: string) => void;
+      let rejectResult: (err: Error) => void;
+      const resultPromise = new Promise<string>((res, rej) => {
+        resolveResult = res;
+        rejectResult = rej;
+      });
+
+      await jail.set('__resolveResult', new ivm.Reference((jsonStr: string) => resolveResult(jsonStr)));
+      await jail.set('__rejectResult', new ivm.Reference((errStr: string) => rejectResult(new Error(errStr))));
+
+      // Build the async wrapper. We use two forms depending on the shape of user code:
+      //   1. Statement form: `${code}` — user code contains statements (var/let/const/try/if/
+      //      for/while/return/etc.) at the top level. It uses explicit `return` statements.
+      //   2. Expression form: `return ${code}` — user code is a pure expression (e.g. an async IIFE
+      //      `(async () => { ... })()`). We prepend `return` so the outer wrapper can await it,
+      //      resolving any returned Promise before serialising to JSON.
+      //
+      // Detection: scan top-level tokens (depth 0, outside of parens/brackets/braces) for any
+      // statement keyword. If none found, treat the whole code as a single expression.
+      const looksLikePureExpression = (src: string): boolean => {
+        const s = src.trim();
+        const stmtKeywords = [
+          'var ', 'let ', 'const ', 'return ', 'throw ',
+          'if ', 'if(', 'for ', 'for(', 'while ', 'while(',
+          'do ', 'do{', 'switch ', 'switch(', 'try ', 'try{',
+          'break', 'continue',
+        ];
+        let depth = 0;
+        let i = 0;
+        while (i < s.length) {
+          const ch = s[i];
+          if (ch === '"' || ch === "'") {
+            const q = ch; i++;
+            while (i < s.length && s[i] !== q) { if (s[i] === '\\') i++; i++; }
+            i++; continue;
+          }
+          if (ch === '`') {
+            i++;
+            while (i < s.length && s[i] !== '`') { if (s[i] === '\\') i++; i++; }
+            i++; continue;
+          }
+          if (ch === '/' && s[i + 1] === '/') { while (i < s.length && s[i] !== '\n') i++; continue; }
+          if (ch === '(' || ch === '[' || ch === '{') { depth++; i++; continue; }
+          if (ch === ')' || ch === ']' || ch === '}') { depth--; i++; continue; }
+          if (depth === 0) {
+            for (const kw of stmtKeywords) {
+              if (s.startsWith(kw, i)) return false;
+            }
+          }
+          i++;
+        }
+        return true;
+      };
+
+      // Two wrapper strategies depending on the shape of user code:
+      //
+      // EXPRESSION form (async IIFE, bare call, etc.):
+      //   Evaluate the expression directly. If it returns a Promise, attach .then()
+      //   to deliver the resolved value via callback. This avoids nesting applySyncPromise
+      //   inside a double-async-await chain, which causes isolated-vm to resolve Promises
+      //   eagerly as {} before the microtask queue drains.
+      //
+      // STATEMENT form (code with var/let/const/return/try/etc.):
+      //   Wrap in an inner async function and await its return value. Works because
+      //   applySyncPromise in synchronous tool calls doesn't conflict with a single
+      //   level of async/await.
+      let wrappedCode: string;
+      if (looksLikePureExpression(code)) {
+        wrappedCode = `
+          (async function() {
+            try {
+              var __userResult = ${code};
+              if (__userResult && typeof __userResult.then === 'function') {
+                __userResult.then(function(v) {
+                  __resolveResult.applySync(undefined, [JSON.stringify({ __result: v })]);
+                }).catch(function(e) {
+                  __rejectResult.applySync(undefined, [String(e)]);
+                });
+              } else {
+                __resolveResult.applySync(undefined, [JSON.stringify({ __result: __userResult })]);
+              }
+            } catch(e) {
+              __rejectResult.applySync(undefined, [String(e)]);
+            }
+          })()
+        `;
+      } else {
+        wrappedCode = `
+          (async function() {
+            try {
+              var __result = await (async function() { ${code} })();
+              __resolveResult.applySync(undefined, [JSON.stringify({ __result: __result })]);
+            } catch(e) {
+              __rejectResult.applySync(undefined, [String(e)]);
+            }
+          })()
+        `;
+      }
+
       const script = await isolate.compileScript(wrappedCode);
-      const resultJson = await script.run(context, { timeout });
-      
+
+      // Run the script (starts the async IIFE); then await the callback-based promise.
+      await script.run(context, { timeout });
+      const resultJson = await resultPromise;
+
       // Parse the result from JSON
-      const result = typeof resultJson === 'string' 
+      const result = typeof resultJson === 'string'
         ? JSON.parse(resultJson).__result
         : resultJson;
-      
+
       return { result, logs };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

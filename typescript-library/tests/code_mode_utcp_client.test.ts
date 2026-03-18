@@ -580,6 +580,48 @@ describe('CodeModeUtcpClient', () => {
     expect(testResults.greetCalled.formal).toBe(false);
   });
 
+  test('should return value from explicit async IIFE (issue #33)', async () => {
+    // Regression test: user writes an async IIFE without an explicit outer 'return'.
+    // The returned Promise used to be serialised as {} before the fix.
+    const code = `
+      (async () => {
+        const result = test_tools.add({ a: 7, b: 8 });
+        return result;
+      })()
+    `;
+
+    const { result } = await client.callToolChain(code);
+    expect(result).toBeDefined();
+    expect(result.result).toBe(15);
+    expect(result.operation).toBe('addition');
+  });
+
+  test('should support top-level await syntax (issue #33)', async () => {
+    // Top-level await works because the wrapper is now an async function.
+    const code = `
+      const result = test_tools.add({ a: 3, b: 4 });
+      const doubled = test_tools.add({ a: result.result, b: result.result });
+      return doubled;
+    `;
+
+    const { result } = await client.callToolChain(code);
+    expect(result.result).toBe(14);
+  });
+
+  test('should return value from async IIFE alongside console output (issue #33)', async () => {
+    const code = `
+      (async () => {
+        console.log('inside async iife');
+        const result = test_tools.add({ a: 100, b: 200 });
+        return result;
+      })()
+    `;
+
+    const { result, logs } = await client.callToolChain(code);
+    expect(result.result).toBe(300);
+    expect(logs).toContain('inside async iife');
+  });
+
   test('should provide agent prompt template', () => {
     const promptTemplate = CodeModeUtcpClient.AGENT_PROMPT_TEMPLATE;
     
