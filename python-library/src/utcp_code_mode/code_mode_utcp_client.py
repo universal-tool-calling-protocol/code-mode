@@ -19,6 +19,8 @@ Key Features:
 from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 import logging
 import asyncio
+import urllib.request
+import json
 from RestrictedPython import compile_restricted
 from RestrictedPython.Guards import safe_globals
 from RestrictedPython.PrintCollector import PrintCollector
@@ -117,20 +119,31 @@ Remember: Always discover and understand available tools before attempting to us
         config: Optional[Union[str, Dict[str, Any], UtcpClientConfig]] = None,
     ) -> 'CodeModeUtcpClient':
         """Create a new CodeModeUtcpClient instance.
-        
+
         This creates a regular UtcpClient first and then wraps it with
         CodeModeUtcpClient functionality.
-        
+
         Args:
             root_dir: The root directory for the client to resolve relative paths from
-            config: The configuration for the client
-            
+            config: The configuration for the client. Can be a file path, a URL
+                     (http/https) pointing to a JSON config in a bucket, a dict,
+                     or a UtcpClientConfig object.
+
         Returns:
             A new CodeModeUtcpClient instance
         """
+        if isinstance(config, str) and (config.startswith('http://') or config.startswith('https://')):
+
+            try:
+                with urllib.request.urlopen(config) as response:
+                    config = json.loads(response.read().decode('utf-8'))
+            except Exception as e:
+                logger.warning(f"Could not fetch or parse config from URL {config}. Error: {e}")
+                config = None
+
         # Import here to avoid circular import
         from utcp.implementations.utcp_client_implementation import UtcpClientImplementation  # noqa: F811
-        
+
         # Create the base client
         base_client = await UtcpClientImplementation.create(root_dir, config)
         return cls(base_client)
