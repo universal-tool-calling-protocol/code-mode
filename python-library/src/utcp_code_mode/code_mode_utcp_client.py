@@ -149,10 +149,11 @@ Remember: Always discover and understand available tools before attempting to us
                 with opener.open(request, timeout=10) as response:
                     return json.loads(response.read().decode('utf-8'))
 
+            url = config
             try:
-                config = await asyncio.to_thread(_fetch_config, config)
+                config = await asyncio.to_thread(_fetch_config, url)
             except Exception as e:
-                raise RuntimeError(f"Failed to load configuration from URL {config}") from e
+                raise RuntimeError(f"Failed to load configuration from URL {url}") from e
 
         # Import here to avoid circular import
         from utcp.implementations.utcp_client_implementation import UtcpClientImplementation  # noqa: F811

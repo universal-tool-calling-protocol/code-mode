@@ -400,7 +400,7 @@ async function initializeUtcpClient(): Promise<CodeModeUtcpClient> {
         const timeoutMs = 10000;
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         try {
-            const response = await fetch(configFileEnv, { signal: controller.signal });
+            const response = await fetch(configFileEnv, { signal: controller.signal, redirect: 'error' });
             if (!response.ok) {
                 throw new Error(`Failed to fetch config from URL "${configFileEnv}": ${response.status} ${response.statusText}`);
             }
