@@ -396,15 +396,22 @@ async function initializeUtcpClient(): Promise<CodeModeUtcpClient> {
 
     if (configFileEnv && isConfigUrl) {
         scriptDir = cwd;
+        const controller = new AbortController();
+        const timeoutMs = 10000;
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         try {
-            const response = await fetch(configFileEnv);
+            const response = await fetch(configFileEnv, { signal: controller.signal });
             if (!response.ok) {
-                console.warn(`Failed to fetch config from URL: ${response.status} ${response.statusText}`);
-            } else {
-                rawConfig = await response.json();
+                throw new Error(`Failed to fetch config from URL "${configFileEnv}": ${response.status} ${response.statusText}`);
             }
+            rawConfig = await response.json();
         } catch (e: any) {
-            console.warn(`Could not fetch or parse config from URL ${configFileEnv}. Error: ${e.message}`);
+            if (e?.name === "AbortError") {
+                throw new Error(`Timed out fetching config from URL "${configFileEnv}" after ${timeoutMs}ms.`);
+            }
+            throw new Error(`Could not fetch or parse config from URL "${configFileEnv}": ${e.message ?? e}`);
+        } finally {
+            clearTimeout(timeoutId);
         }
     } else if (configFileEnv) {
         configPath = path.resolve(configFileEnv);

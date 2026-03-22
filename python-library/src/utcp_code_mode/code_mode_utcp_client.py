@@ -20,6 +20,7 @@ from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 import logging
 import asyncio
 import urllib.request
+import urllib.error
 import json
 from RestrictedPython import compile_restricted
 from RestrictedPython.Guards import safe_globals
@@ -134,12 +135,24 @@ Remember: Always discover and understand available tools before attempting to us
         """
         if isinstance(config, str) and (config.startswith('http://') or config.startswith('https://')):
 
+            def _fetch_config(url: str) -> dict:
+                class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+                    def redirect_request(self, req, fp, code, msg, headers, newurl):
+                        raise urllib.error.HTTPError(
+                            req.full_url, code,
+                            f"Redirects are not allowed when loading config: {msg}",
+                            headers, fp,
+                        )
+
+                opener = urllib.request.build_opener(_NoRedirectHandler)
+                request = urllib.request.Request(url)
+                with opener.open(request, timeout=10) as response:
+                    return json.loads(response.read().decode('utf-8'))
+
             try:
-                with urllib.request.urlopen(config) as response:
-                    config = json.loads(response.read().decode('utf-8'))
+                config = await asyncio.to_thread(_fetch_config, config)
             except Exception as e:
-                logger.warning(f"Could not fetch or parse config from URL {config}. Error: {e}")
-                config = None
+                raise RuntimeError(f"Failed to load configuration from URL {config}") from e
 
         # Import here to avoid circular import
         from utcp.implementations.utcp_client_implementation import UtcpClientImplementation  # noqa: F811
