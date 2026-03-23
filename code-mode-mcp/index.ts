@@ -385,13 +385,36 @@ async function initializeUtcpClient(): Promise<CodeModeUtcpClient> {
     // Look for config file: 1) Environment variable, 2) Current working directory, 3) Package directory
     const cwd = process.cwd();
     const packageDir = __dirname;
-
-    let configPath: string;
+    
+    let configPath: string = '';
     let scriptDir: string;
+    let rawConfig: any = {};
 
     // Check if UTCP_CONFIG_FILE environment variable is set
-    if (process.env.UTCP_CONFIG_FILE) {
-        configPath = path.resolve(process.env.UTCP_CONFIG_FILE);
+    const configFileEnv = process.env.UTCP_CONFIG_FILE;
+    const isConfigUrl = configFileEnv?.startsWith('http://') || configFileEnv?.startsWith('https://');
+
+    if (configFileEnv && isConfigUrl) {
+        scriptDir = cwd;
+        const controller = new AbortController();
+        const timeoutMs = 10000;
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const response = await fetch(configFileEnv, { signal: controller.signal, redirect: 'error' });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch config from URL "${configFileEnv}": ${response.status} ${response.statusText}`);
+            }
+            rawConfig = await response.json();
+        } catch (e: any) {
+            if (e?.name === "AbortError") {
+                throw new Error(`Timed out fetching config from URL "${configFileEnv}" after ${timeoutMs}ms.`);
+            }
+            throw new Error(`Could not fetch or parse config from URL "${configFileEnv}": ${e.message ?? e}`);
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    } else if (configFileEnv) {
+        configPath = path.resolve(configFileEnv);
         scriptDir = path.dirname(configPath);
 
         try {
@@ -412,13 +435,14 @@ async function initializeUtcpClient(): Promise<CodeModeUtcpClient> {
         }
     }
 
-    let rawConfig: any = {};
-    try {
-        const configFileContent = await fs.readFile(configPath, 'utf-8');
-        rawConfig = JSON.parse(configFileContent);
-    } catch (e: any) {
-        if (e.code !== 'ENOENT') {
-            console.warn(`Could not read or parse .utcp_config.json. Error: ${e.message}`);
+    if (!isConfigUrl) {
+        try {
+            const configFileContent = await fs.readFile(configPath, 'utf-8');
+            rawConfig = JSON.parse(configFileContent);
+        } catch (e: any) {
+            if (e.code !== 'ENOENT') {
+                console.warn(`Could not read or parse .utcp_config.json. Error: ${e.message}`);
+            }
         }
     }
 

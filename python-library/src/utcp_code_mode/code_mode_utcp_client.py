@@ -19,6 +19,9 @@ Key Features:
 from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING
 import logging
 import asyncio
+import urllib.request
+import urllib.error
+import json
 from RestrictedPython import compile_restricted
 from RestrictedPython.Guards import safe_globals
 from RestrictedPython.PrintCollector import PrintCollector
@@ -117,20 +120,44 @@ Remember: Always discover and understand available tools before attempting to us
         config: Optional[Union[str, Dict[str, Any], UtcpClientConfig]] = None,
     ) -> 'CodeModeUtcpClient':
         """Create a new CodeModeUtcpClient instance.
-        
+
         This creates a regular UtcpClient first and then wraps it with
         CodeModeUtcpClient functionality.
-        
+
         Args:
             root_dir: The root directory for the client to resolve relative paths from
-            config: The configuration for the client
-            
+            config: The configuration for the client. Can be a file path, a URL
+                     (http/https) pointing to a JSON config in a bucket, a dict,
+                     or a UtcpClientConfig object.
+
         Returns:
             A new CodeModeUtcpClient instance
         """
+        if isinstance(config, str) and (config.startswith('http://') or config.startswith('https://')):
+
+            def _fetch_config(url: str) -> dict:
+                class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+                    def redirect_request(self, req, fp, code, msg, headers, newurl):
+                        raise urllib.error.HTTPError(
+                            req.full_url, code,
+                            f"Redirects are not allowed when loading config: {msg}",
+                            headers, fp,
+                        )
+
+                opener = urllib.request.build_opener(_NoRedirectHandler)
+                request = urllib.request.Request(url)
+                with opener.open(request, timeout=10) as response:
+                    return json.loads(response.read().decode('utf-8'))
+
+            url = config
+            try:
+                config = await asyncio.to_thread(_fetch_config, url)
+            except Exception as e:
+                raise RuntimeError(f"Failed to load configuration from URL {url}") from e
+
         # Import here to avoid circular import
         from utcp.implementations.utcp_client_implementation import UtcpClientImplementation  # noqa: F811
-        
+
         # Create the base client
         base_client = await UtcpClientImplementation.create(root_dir, config)
         return cls(base_client)
