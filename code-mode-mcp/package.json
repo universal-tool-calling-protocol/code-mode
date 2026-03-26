@@ -14,7 +14,8 @@
   "scripts": {
     "build": "node --max-old-space-size=8192 ./node_modules/typescript/bin/tsc",
     "prepublishOnly": "npm run build",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "postinstall": "patch-package"
   },
   "keywords": [
     "utcp",
@@ -47,10 +48,10 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^20.0.0",
+    "patch-package": "^8.0.1",
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "express": "^5.1.0",
     "@modelcontextprotocol/sdk": "^1.20.2",
     "@utcp/cli": "^1.1.0",
     "@utcp/code-mode": "^1.2.11",
@@ -61,6 +62,7 @@
     "@utcp/sdk": "^1.1.0",
     "@utcp/text": "^1.1.0",
     "dotenv": "^16.0.0",
+    "express": "^5.1.0",
     "zod": "^3.22.0"
   }
 }

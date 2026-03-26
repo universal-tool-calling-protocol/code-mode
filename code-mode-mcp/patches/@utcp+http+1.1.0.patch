@@ -1,0 +1,90 @@
+diff --git a/node_modules/@utcp/http/dist/index.cjs b/node_modules/@utcp/http/dist/index.cjs
+index 5764058..571e985 100644
+--- a/node_modules/@utcp/http/dist/index.cjs
++++ b/node_modules/@utcp/http/dist/index.cjs
+@@ -4387,7 +4387,7 @@ var OpenApiConverter = class {
+    * @returns A Tool object or null if operationId is not defined.
+    */
+   _createTool(path, method, operation, baseUrl) {
+-    const operationId = operation.operationId;
++    const operationId = operation.operationId || this._generateOperationId(method, path);
+     if (!operationId) {
+       return null;
+     }
+@@ -4417,6 +4417,21 @@ var OpenApiConverter = class {
+       tool_call_template: callTemplate
+     };
+   }
++  /**
++   * Generates an operationId from the HTTP method and path when one isn't provided.
++   * Converts path segments into camelCase, e.g. GET /cart/items -> getCartItems
++   */
++  _generateOperationId(method, path) {
++    const segments = path.replace(/^\/+|\/+$/g, "").split("/").filter((s) => s.length > 0).map((s) => {
++      if (s.startsWith("{") && s.endsWith("}")) {
++        const param = s.slice(1, -1);
++        return "By" + param.charAt(0).toUpperCase() + param.slice(1);
++      }
++      return s.replace(/[^a-zA-Z0-9]/g, "_");
++    });
++    const joined = segments.map((s, i) => i === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1)).join("");
++    return method.toLowerCase() + (joined.charAt(0).toUpperCase() + joined.slice(1));
++  }
+   /**
+    * Extracts the input schema, header fields, and body field from an OpenAPI operation.
+    * - Merges path-level and operation-level parameters.
+diff --git a/node_modules/@utcp/http/dist/index.js b/node_modules/@utcp/http/dist/index.js
+index 3bc241c..d0c07bf 100644
+--- a/node_modules/@utcp/http/dist/index.js
++++ b/node_modules/@utcp/http/dist/index.js
+@@ -4068,7 +4068,8 @@ var HttpCallTemplateSchema = external_exports.object({
+     }
+     return val;
+   }).describe("Authentication configuration for generated tools"),
+-  allowed_communication_protocols: external_exports.array(external_exports.string()).optional().describe("Optional list of allowed communication protocol types for tools within this manual.")
++  allowed_communication_protocols: external_exports.array(external_exports.string()).optional().describe("Optional list of allowed communication protocol types for tools within this manual."),
++  base_url: external_exports.string().optional().describe("Base URL override for tool execution. When set, tool calls use this URL instead of the one derived from the OpenAPI spec.")
+ });
+ var HttpCallTemplateSerializer = class extends Serializer {
+   toDict(obj) {
+@@ -4349,7 +4350,7 @@ var OpenApiConverter = class {
+    * @returns A Tool object or null if operationId is not defined.
+    */
+   _createTool(path, method, operation, baseUrl) {
+-    const operationId = operation.operationId;
++    const operationId = operation.operationId || this._generateOperationId(method, path);
+     if (!operationId) {
+       return null;
+     }
+@@ -4379,6 +4380,21 @@ var OpenApiConverter = class {
+       tool_call_template: callTemplate
+     };
+   }
++  /**
++   * Generates an operationId from the HTTP method and path when one isn't provided.
++   * Converts path segments into camelCase, e.g. GET /cart/items -> getCartItems
++   */
++  _generateOperationId(method, path) {
++    const segments = path.replace(/^\/+|\/+$/g, "").split("/").filter((s) => s.length > 0).map((s) => {
++      if (s.startsWith("{") && s.endsWith("}")) {
++        const param = s.slice(1, -1);
++        return "By" + param.charAt(0).toUpperCase() + param.slice(1);
++      }
++      return s.replace(/[^a-zA-Z0-9]/g, "_");
++    });
++    const joined = segments.map((s, i) => i === 0 ? s : s.charAt(0).toUpperCase() + s.slice(1)).join("");
++    return method.toLowerCase() + (joined.charAt(0).toUpperCase() + joined.slice(1));
++  }
+   /**
+    * Extracts the input schema, header fields, and body field from an OpenAPI operation.
+    * - Merges path-level and operation-level parameters.
+@@ -4713,7 +4729,8 @@ var HttpCommunicationProtocol = class {
+         this._logInfo(`Assuming OpenAPI spec from '${httpCallTemplate.name}'. Converting to UTCP manual.`);
+         const converter = new OpenApiConverter(responseData, {
+           specUrl: httpCallTemplate.url,
+-          callTemplateName: httpCallTemplate.name
++          callTemplateName: httpCallTemplate.name,
++          baseUrl: httpCallTemplate.base_url
+         });
+         utcpManual = converter.convert();
+       } else {
