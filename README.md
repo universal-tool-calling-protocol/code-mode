@@ -122,9 +122,34 @@ Works with **any tool ecosystem:**
 npm install @utcp/code-mode
 ```
 
-## Even Easier: Ready-to-Use MCP Server
+## Recommended for shell agents: the `utcp` CLI
 
-**Want Code Mode without any setup?** Use our plug-and-play MCP server with Claude Desktop or any MCP client:
+**If your agent can run shell commands** (Claude Code, Cursor, Codex, Claude Cowork, etc.), the [`utcp` CLI](./code-mode-cli) is the **preferred** way to use Code Mode — no MCP server, no client config, no env vars. The agent self-configures by writing a `.utcp_config.json` and drives everything from the shell.
+
+Just point the agent at the built-in guide:
+
+```bash
+npx -y @utcp/code-mode-cli prompt
+```
+
+Hand it a description of the API to use — a UTCP call template, an **OpenAPI spec**, or a **plain-English description** — and it writes the config, discovers tools, runs tool-chains, and even completes **interactive OAuth logins** (e.g. Notion), all from the shell:
+
+```bash
+npx -y @utcp/code-mode-cli search "<task>"           # discover tools + TS interfaces
+npx -y @utcp/code-mode-cli run <<'EOF'               # run a tool-chain
+const r = await openlibrary.read_search_json_search_json_get({ q: "tolkien", limit: 3 });
+return r.docs.map(b => b.title);
+EOF
+npx -y @utcp/code-mode-cli login <manual>            # interactive OAuth, writes token to .env
+```
+
+> **CLI vs MCP:** prefer the **CLI** whenever the agent has shell access (most coding agents) — it's simpler and self-configuring. Use the **MCP server** (below) only for MCP-only clients like Claude Desktop. Both wrap the same `@utcp/code-mode` engine.
+
+See [`code-mode-cli/`](./code-mode-cli) for full docs.
+
+## Ready-to-Use MCP Server
+
+**On an MCP-only client (e.g. Claude Desktop)?** Use our plug-and-play MCP server. (If your agent has a shell, prefer the [`utcp` CLI](#recommended-for-shell-agents-the-utcp-cli) above.)
 
 ```json
 {
