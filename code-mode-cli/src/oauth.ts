@@ -93,19 +93,24 @@ async function persistTokenMeta(manual: string, meta: Record<string, any>): Prom
 // helpers
 // ---------------------------------------------------------------------------
 
-/** Accepts a bare code or a full pasted redirect URL and returns the code. */
-export function parseCodeFromInput(input: string): string {
+/** Reads a query param from a pasted redirect URL (or bare `?k=v` fragment). */
+function paramFromInput(input: string, name: string): string | null {
   const trimmed = input.trim();
   if (trimmed.includes('://') || trimmed.includes('?')) {
     try {
       const url = new URL(trimmed.includes('://') ? trimmed : `http://x/${trimmed}`);
-      const code = url.searchParams.get('code');
-      if (code) return code;
+      return url.searchParams.get(name);
     } catch {
-      /* not a URL, treat as raw code */
+      /* not a URL */
     }
   }
-  return trimmed;
+  return null;
+}
+
+/** Accepts a bare code or a full pasted redirect URL and returns the code. */
+export function parseCodeFromInput(input: string): string {
+  const code = paramFromInput(input, 'code');
+  return code ?? input.trim();
 }
 
 function b64url(buf: Buffer): string {
@@ -243,6 +248,16 @@ export async function loginFinishWithCode(manual: string, codeInput: string): Pr
   if (!st) throw new Error(`No pending login for '${manual}'. Run \`utcp login ${manual}\` first.`);
   const code = parseCodeFromInput(codeInput);
 
+  // CSRF / response-binding check: if we issued a `state` and the user pasted the
+  // full redirect URL (which carries `state`), it must match what we stored. A
+  // bare code paste has no state to compare, so it can't be verified.
+  if (st.state) {
+    const returnedState = paramFromInput(codeInput, 'state');
+    if (returnedState && returnedState !== st.state) {
+      throw new Error('OAuth state mismatch — aborting login (possible CSRF, or a stale/wrong link). Restart with `utcp login`.');
+    }
+  }
+
   if (st.kind === 'http_authcode') {
     const res = await postForm(st.tokenEndpoint, {
       grant_type: 'authorization_code',
@@ -315,11 +330,13 @@ export async function mcpLoginStart(a: McpLoginArgs): Promise<void> {
   });
 
   const resource = new URL((resourceMeta as any)?.resource || a.serverUrl);
+  const state = b64url(crypto.randomBytes(16));
   const { authorizationUrl, codeVerifier } = await startAuthorization(authServerUrl, {
     metadata,
     clientInformation,
     redirectUrl: a.redirect,
     scope: a.scope,
+    state,
     resource,
   });
 
@@ -329,6 +346,7 @@ export async function mcpLoginStart(a: McpLoginArgs): Promise<void> {
     metadata,
     clientInformation,
     codeVerifier,
+    state,
     redirect: a.redirect,
     resource: resource.href,
     envPath: a.envPath,

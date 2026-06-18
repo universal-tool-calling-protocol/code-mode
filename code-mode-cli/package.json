@@ -1,6 +1,6 @@
 {
   "name": "@utcp/code-mode-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Shell CLI that lets ANY LLM agent call UTCP tools via code mode — discover tools, run TypeScript tool-chains in a sandbox, and complete interactive OAuth logins. No MCP required. Built for sandboxed agents (e.g. Claude Cowork).",
   "type": "module",
   "main": "dist/index.js",

@@ -31,7 +31,15 @@ export async function validateConfig(configFlag: string | undefined, offline: bo
     return { valid: false, error: `Config is invalid: ${e.message}` };
   }
 
-  const manuals: any[] = (rawConfig as any).manual_call_templates || [];
+  const rawManuals = (rawConfig as any).manual_call_templates;
+  if (rawManuals !== undefined && !Array.isArray(rawManuals)) {
+    return {
+      valid: false,
+      config_path: configPath,
+      error: `"manual_call_templates" must be an array, got ${typeof rawManuals}.`,
+    };
+  }
+  const manuals: any[] = rawManuals || [];
   const reports: ManualReport[] = [];
   const ser = new CallTemplateSerializer();
 
