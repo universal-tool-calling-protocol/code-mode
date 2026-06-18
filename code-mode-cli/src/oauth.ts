@@ -248,13 +248,18 @@ export async function loginFinishWithCode(manual: string, codeInput: string): Pr
   if (!st) throw new Error(`No pending login for '${manual}'. Run \`utcp login ${manual}\` first.`);
   const code = parseCodeFromInput(codeInput);
 
-  // CSRF / response-binding check: if we issued a `state` and the user pasted the
-  // full redirect URL (which carries `state`), it must match what we stored. A
-  // bare code paste has no state to compare, so it can't be verified.
+  // CSRF / response-binding check. If we issued a `state`, a pasted redirect URL
+  // MUST carry a matching `state` — a URL with a missing or different state is
+  // rejected (fail-closed), since a legitimate redirect from our request always
+  // includes it. Only a bare code paste (no URL) is allowed through unverified,
+  // because there is genuinely no state to compare.
   if (st.state) {
-    const returnedState = paramFromInput(codeInput, 'state');
-    if (returnedState && returnedState !== st.state) {
-      throw new Error('OAuth state mismatch — aborting login (possible CSRF, or a stale/wrong link). Restart with `utcp login`.');
+    const isRedirectUrl = /:\/\/|\?/.test(codeInput.trim());
+    if (isRedirectUrl) {
+      const returnedState = paramFromInput(codeInput, 'state');
+      if (returnedState !== st.state) {
+        throw new Error('OAuth state missing or mismatched — aborting login (possible CSRF, or a stale/wrong link). Restart with `utcp login`.');
+      }
     }
   }
 
