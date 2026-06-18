@@ -1,0 +1,65 @@
+{
+  "name": "@utcp/code-mode-cli",
+  "version": "0.1.0",
+  "description": "Shell CLI that lets ANY LLM agent call UTCP tools via code mode — discover tools, run TypeScript tool-chains in a sandbox, and complete interactive OAuth logins. No MCP required. Built for sandboxed agents (e.g. Claude Cowork).",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "utcp": "./dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "SKILL.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "start": "node dist/index.js"
+  },
+  "keywords": [
+    "utcp",
+    "code-mode",
+    "cli",
+    "llm",
+    "agent",
+    "tool-calling",
+    "oauth",
+    "sandbox",
+    "cowork"
+  ],
+  "author": "UTCP Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/universal-tool-calling-protocol/code-mode.git",
+    "directory": "code-mode-cli"
+  },
+  "homepage": "https://github.com/universal-tool-calling-protocol/code-mode/tree/main/code-mode-cli#readme",
+  "bugs": {
+    "url": "https://github.com/universal-tool-calling-protocol/code-mode/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@utcp/sdk": "^1.1.1",
+    "@utcp/http": "^1.1.7",
+    "@utcp/mcp": "^1.1.3",
+    "@utcp/cli": "^1.1.1",
+    "@utcp/text": "^1.1.0",
+    "@utcp/file": "^1.1.0",
+    "@utcp/dotenv-loader": "^1.1.0",
+    "@utcp/code-mode": "^1.2.12",
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "isolated-vm": "^6.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
