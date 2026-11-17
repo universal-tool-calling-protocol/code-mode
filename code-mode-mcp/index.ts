@@ -29,7 +29,7 @@ import {
     ensureCorePluginsInitialized,
     UtcpClientConfigSerializer
 } from "@utcp/sdk";
-import type { UtcpClientConfig } from "@utcp/sdk";
+import type { UtcpClientConfig, RegisterManualResult } from "@utcp/sdk";
 import { CodeModeUtcpClient } from "@utcp/code-mode";
 import { ContentBlock, ContentBlockSchema } from "@modelcontextprotocol/sdk/types.js";
 
@@ -102,6 +102,30 @@ async function findToolByName(client: CodeModeUtcpClient, name: string): Promise
     return null;
 }
 
+/**
+ * Builds the register_manual response without any call template.
+ *
+ * `UtcpClient.registerManual` returns the call template after variable
+ * substitution, both for the manual and for every tool, so headers, args and
+ * env values resolved from `load_variables_from` (API keys, bearer tokens)
+ * would be sent to the MCP client, and from there into the model context,
+ * transcripts and logs. Only report what the caller needs: whether it worked
+ * and the names to call the new tools by.
+ */
+function summarizeRegisterManualResult(result: RegisterManualResult) {
+    const tools = result.manual?.tools ?? [];
+    return {
+        success: result.success,
+        manual_name: result.manualCallTemplate?.name,
+        tool_count: tools.length,
+        tools: tools.map(t => ({
+            name: utcpNameToTsInterfaceName(t.name),
+            description: t.description,
+        })),
+        errors: result.errors,
+    };
+}
+
 function setupMcpTools() {
     // Register MCP prompt for using the code mode server
     mcp.registerPrompt("utcp_codemode_usage", {
@@ -145,7 +169,7 @@ Remember: The power of this system comes from combining multiple tools in sophis
         const client = await initializeUtcpClient();
         try {
             const result = await client.registerManual(input.manual_call_template as any);
-            return { content: [{ type: "text", text: JSON.stringify(result) }] };
+            return { content: [{ type: "text", text: JSON.stringify(summarizeRegisterManualResult(result)) }] };
         } catch (e: any) {
             return { content: [{ type: "text", text: JSON.stringify({ success: false, error: e.message }) }] };
         }
